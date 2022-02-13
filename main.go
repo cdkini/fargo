@@ -1,93 +1,79 @@
 package main
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
+	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
 func main() {
-	query, source, err := parseArgs()
-	if err != nil {
-		log.Fatal(err)
+	args := gatherArgs()
+	results := runRipgrep(args)
+	for _, result := range results {
+		promptUserConfirmation(result.text)
 	}
-
-	paths, err := GetFilesToSearch(source)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	SearchFiles(paths, query)
 }
 
-func parseArgs() (string, string, error) {
+type SearchResult struct {
+	path string
+	line int
+	text string
+}
+
+var rgx = regexp.MustCompile(`(.+):(\d+):(.+)`)
+
+func parseResultFromString(str string) (SearchResult, error) {
+	matches := rgx.FindStringSubmatch(str)
+	if len(matches) != 4 {
+		err := errors.New("Something went wrong when parsing text")
+		return SearchResult{}, err
+	}
+
+	path := matches[1]
+	line, err := strconv.Atoi(matches[2])
+	text := matches[3]
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return SearchResult{path, line, text}, nil
+}
+
+func gatherArgs() []string {
 	args := os.Args[1:]
-	if len(args) == 1 {
-		return args[0], ".", nil
-	} else if len(args) == 2 {
-		return args[0], args[1], nil
-	}
-	return "", "", errors.New("Improper arguments; search query/pattern is mandatory")
+	args = append(args, "-n")
+	return args
 }
 
-func GetFilesToSearch(source string) ([]string, error) {
-	f, err := os.Stat(source)
-	if err != nil {
-		return nil, err
-	}
-
-	if f.IsDir() {
-		return getFilePathsFromDir(source)
-	}
-	return []string{source}, nil
-}
-
-func getFilePathsFromDir(dir string) ([]string, error) {
-	paths := make([]string, 0)
-	err := filepath.Walk(dir,
-		func(path string, file os.FileInfo, err error) error {
-			if isHiddenDir(file) {
-				return filepath.SkipDir
-			}
-			paths = append(paths, path)
-			return nil
-		})
-
-	return paths, err
-}
-
-func isHiddenDir(file os.FileInfo) bool {
-	return file.IsDir() && strings.HasPrefix(file.Name(), ".")
-}
-
-func SearchFiles(paths []string, query string) {
-	r, err := regexp.Compile(query)
+func runRipgrep(args []string) []SearchResult {
+	rg := exec.Command("rg", args...)
+	out, err := rg.Output()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	for _, path := range paths {
-		searchFile(path, r)
-	}
-}
+	lines := strings.Split(string(out), "\n")
 
-func searchFile(path string, r *regexp.Regexp) {
-	file, err := os.Open(path)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		text := scanner.Text()
-		if match := r.MatchString(text); match {
-			fmt.Println(path)
+	results := make([]SearchResult, 0)
+	for _, line := range lines {
+		result, err := parseResultFromString(line)
+		if err != nil {
+			continue
 		}
+		results = append(results, result)
 	}
+
+	return results
+}
+
+func promptUserConfirmation(message string) bool {
+	fmt.Println(message)
+	var response string
+	fmt.Scanln(&response)
+	return strings.HasPrefix(strings.ToLower(response), "y")
 }
