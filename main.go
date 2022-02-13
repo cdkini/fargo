@@ -25,6 +25,7 @@ type SearchResult struct {
 	text string
 }
 
+// <FILE_PATH>:<LINE_NUMBER>:<MATCHING_TEXT>
 var rgx = regexp.MustCompile(`(.+):(\d+):(.+)`)
 
 func parseResultFromString(str string) (SearchResult, error) {
@@ -38,7 +39,7 @@ func parseResultFromString(str string) (SearchResult, error) {
 	line, err := strconv.Atoi(matches[2])
 	text := matches[3]
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(err) // Should never occur since ripgrep guarantees this format
 	}
 
 	return SearchResult{path, line, text}, nil
@@ -46,7 +47,7 @@ func parseResultFromString(str string) (SearchResult, error) {
 
 func gatherArgs() []string {
 	args := os.Args[1:]
-	args = append(args, "-n")
+	args = append(args, "-n") // Line numbers are essential for proper SearchResult parsing
 	return args
 }
 
@@ -63,7 +64,7 @@ func runRipgrep(args []string) []SearchResult {
 	for _, line := range lines {
 		result, err := parseResultFromString(line)
 		if err != nil {
-			continue
+			continue // Failed parsing shouldn't cause a sys exit
 		}
 		results = append(results, result)
 	}
@@ -71,6 +72,7 @@ func runRipgrep(args []string) []SearchResult {
 	return results
 }
 
+// TODO(cdkini): This needs refinement
 func promptUserConfirmation(message string) bool {
 	fmt.Println(message)
 	var response string
