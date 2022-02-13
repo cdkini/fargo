@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 )
 
 func main() {
@@ -15,11 +16,13 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	paths, err := getFilesToSearch(source)
+
+	paths, err := GetFilesToSearch(source)
 	if err != nil {
 		log.Fatal(err)
 	}
-	searchFileList(paths, query)
+
+	SearchFiles(paths, query)
 }
 
 func parseArgs() (string, string, error) {
@@ -32,7 +35,7 @@ func parseArgs() (string, string, error) {
 	return "", "", errors.New("Improper arguments; search query/pattern is mandatory")
 }
 
-func getFilesToSearch(source string) ([]string, error) {
+func GetFilesToSearch(source string) ([]string, error) {
 	f, err := os.Stat(source)
 	if err != nil {
 		return nil, err
@@ -40,25 +43,29 @@ func getFilesToSearch(source string) ([]string, error) {
 
 	if f.IsDir() {
 		return getFilePathsFromDir(source)
-	} else {
-		return []string{source}, nil
 	}
+	return []string{source}, nil
 }
 
 func getFilePathsFromDir(dir string) ([]string, error) {
 	paths := make([]string, 0)
 	err := filepath.Walk(dir,
-		func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
+		func(path string, file os.FileInfo, err error) error {
+			if isHiddenDir(file) {
+				return filepath.SkipDir
 			}
 			paths = append(paths, path)
 			return nil
 		})
+
 	return paths, err
 }
 
-func searchFileList(paths []string, query string) {
+func isHiddenDir(file os.FileInfo) bool {
+	return file.IsDir() && strings.HasPrefix(file.Name(), ".")
+}
+
+func SearchFiles(paths []string, query string) {
 	r, err := regexp.Compile(query)
 	if err != nil {
 		log.Fatal(err)
@@ -79,9 +86,8 @@ func searchFile(path string, r *regexp.Regexp) {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		text := scanner.Text()
-		match := r.MatchString(text)
-		if match {
-			fmt.Println(path, text)
+		if match := r.MatchString(text); match {
+			fmt.Println(path)
 		}
 	}
 }
