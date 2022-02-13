@@ -68,7 +68,7 @@ func parseResultFromString(str string, lineRegex *regexp.Regexp, rgRegex *regexp
 	path := matches[1]
 	line, err := strconv.Atoi(matches[2])
 	text := matches[3]
-	indices := lineRegex.FindStringIndex(text)
+    indices := lineRegex.FindStringIndex(text) // TODO(cdkini): Ensure this captures ALL matches in a line
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -90,19 +90,18 @@ func FilterRelevantResults(results []SearchResult) []SearchResult {
 func promptUserConfirmation(result SearchResult) bool {
 	yellow := color.New(color.FgYellow).Add(color.Underline)
 	yellow.Printf("\n%s L%d\n\n", result.path, result.line)
-    
 
     before := result.text[:result.indices[0]]
     match := result.text[result.indices[0]:result.indices[1]]
     after := result.text[result.indices[1]:] 
 
-    red := color.New(color.FgRed)
+    red := color.New(color.FgRed).Add(color.Bold)
     fmt.Print(before)
     red.Print(match)
     fmt.Println(after)
 
 	cyan := color.New(color.FgCyan).Add(color.Bold)
-	cyan.Print("\nReplace (y/n): ")
+	cyan.Print("\nReplace [y/n]: ")
 
 	var response string
 	fmt.Scanln(&response)
